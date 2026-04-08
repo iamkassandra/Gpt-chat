@@ -1,16 +1,20 @@
 # Gpt-chat
 
-Utility script to download all Hugging Face model repositories for a specific account.
+This repo now includes scripts/lists to mirror Kaoss999 Hugging Face model repos.
 
-## Usage
+## Files
+
+- `KAOSS999_REPOS.txt`: explicit list of 100 repos.
+- `mirror_kaoss999_models.sh`: clones all repos from the list and fetches LFS objects.
+- `download_all_hf_models.py`: API-based downloader for any account (requires `huggingface_hub`).
+
+## Fastest route for Kaoss999
 
 ```bash
-python -m pip install -U huggingface_hub
-export HF_TOKEN=hf_xxx  # optional but recommended
-python download_all_hf_models.py --author Kaoss999 --out ./Kaoss999_models_full --archive
+bash mirror_kaoss999_models.sh KAOSS999_REPOS.txt ./Kaoss999_models_full
 ```
 
-This creates:
-- Downloaded repositories under the output folder
-- `manifest.json` with per-repository status and errors
-- Optional `.tar.gz` archive when `--archive` is set
+## Notes
+
+- Hugging Face repos typically store model weights in Git LFS; `git-lfs` must be installed.
+- If access is blocked (proxy/network restrictions), run the same command in an unrestricted environment.
