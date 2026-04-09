@@ -1,0 +1,71 @@
+name: Kaoss999 Auto Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_mirror_branch:
+        description: "Push mirrored files to branch kaoss999-mirror (can be very large)"
+        required: false
+        default: "false"
+      include_lfs_payloads:
+        description: "Try to fetch Git LFS payloads"
+        required: false
+        default: "true"
+  schedule:
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs jq
+          git lfs install
+
+      - name: Mirror Kaoss999 repos
+        env:
+          REPO_LIST: KAOSS999_REPOS.txt
+          OUT_DIR: mirror_out
+        run: |
+          if [ "${{ github.event.inputs.include_lfs_payloads || 'true' }}" = "false" ]; then
+            # Disable LFS smudge for faster metadata-only sync
+            export GIT_LFS_SKIP_SMUDGE=1
+          fi
+          bash scripts/github_sync_kaoss999.sh
+
+      - name: Upload sync artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaoss999-sync-${{ github.run_id }}
+          path: |
+            mirror_out/sync_summary.json
+            mirror_out/sync_report.jsonl
+          if-no-files-found: error
+
+      - name: Optionally push mirror branch
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.push_mirror_branch == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B kaoss999-mirror
+          mkdir -p hf-mirror
+          rsync -a --delete --exclude '.git' mirror_out/ hf-mirror/
+
+          git add hf-mirror
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "chore: auto-sync Kaoss999 mirror (${GITHUB_RUN_ID})"
+          git push origin kaoss999-mirror --force
