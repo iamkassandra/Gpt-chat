@@ -1,16 +1,16 @@
-name: Kaoss999 Auto Sync
+name: Kaoss999 Full Mirror To GitHub
 
 on:
   workflow_dispatch:
     inputs:
-      push_mirror_branch:
-        description: "Push mirrored files to branch kaoss999-mirror (can be very large)"
+      branch_prefix:
+        description: "Branch prefix for mirrored repos"
         required: false
-        default: "false"
-      include_lfs_payloads:
-        description: "Try to fetch Git LFS payloads"
+        default: "hf-kaoss999"
+      max_retries:
+        description: "Clone retries per repository"
         required: false
-        default: "true"
+        default: "3"
   schedule:
     - cron: "0 3 * * *"
 
@@ -18,54 +18,35 @@ permissions:
   contents: write
 
 jobs:
-  sync:
+  mirror:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - name: Checkout repo
+      - name: Checkout config repo
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install git-lfs
         run: |
           sudo apt-get update
-          sudo apt-get install -y git-lfs jq
+          sudo apt-get install -y git-lfs
           git lfs install
 
-      - name: Mirror Kaoss999 repos
+      - name: Mirror all Kaoss999 repos into this GitHub repo branches
         env:
           REPO_LIST: KAOSS999_REPOS.txt
-          OUT_DIR: mirror_out
+          BRANCH_PREFIX: ${{ github.event.inputs.branch_prefix || 'hf-kaoss999' }}
+          MAX_RETRIES: ${{ github.event.inputs.max_retries || '3' }}
+          GH_REMOTE_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          WORK_ROOT: /tmp/kaoss999-mirror
         run: |
-          if [ "${{ github.event.inputs.include_lfs_payloads || 'true' }}" = "false" ]; then
-            # Disable LFS smudge for faster metadata-only sync
-            export GIT_LFS_SKIP_SMUDGE=1
-          fi
-          bash scripts/github_sync_kaoss999.sh
+          bash scripts/mirror_to_github_branches.sh
 
-      - name: Upload sync artifacts
+      - name: Upload mirror reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kaoss999-sync-${{ github.run_id }}
+          name: kaoss999-full-mirror-${{ github.run_id }}
           path: |
-            mirror_out/sync_summary.json
-            mirror_out/sync_report.jsonl
-          if-no-files-found: error
-
-      - name: Optionally push mirror branch
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.push_mirror_branch == 'true' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git checkout -B kaoss999-mirror
-          mkdir -p hf-mirror
-          rsync -a --delete --exclude '.git' mirror_out/ hf-mirror/
-
-          git add hf-mirror
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-
-          git commit -m "chore: auto-sync Kaoss999 mirror (${GITHUB_RUN_ID})"
-          git push origin kaoss999-mirror --force
+            /tmp/kaoss999-mirror/mirror_report.jsonl
+            /tmp/kaoss999-mirror/mirror_summary.json
+          if-no-files-found: warn
