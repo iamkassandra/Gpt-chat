@@ -1,0 +1,63 @@
+name: Kaoss999 Full Mirror To GitHub
+
+on:
+  push:
+    branches: ["main", "master"]
+  workflow_dispatch:
+    inputs:
+      branch_prefix:
+        description: "Branch prefix for mirrored repos"
+        required: false
+        default: "hf-kaoss999"
+      max_retries:
+        description: "Clone retries per repository"
+        required: false
+        default: "3"
+  schedule:
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout config repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+          python -m pip install --upgrade pip
+          python -m pip install huggingface_hub
+
+      - name: Export current Kaoss999 model repos from Hugging Face
+        env:
+          AUTHOR: Kaoss999
+        run: |
+          python scripts/export_hf_model_list.py --author "$AUTHOR" --out /tmp/kaoss999-mirror/repos.txt
+
+      - name: Mirror all Kaoss999 repos into this GitHub repo branches
+        env:
+          REPO_LIST: /tmp/kaoss999-mirror/repos.txt
+          BRANCH_PREFIX: ${{ github.event.inputs.branch_prefix || 'hf-kaoss999' }}
+          MAX_RETRIES: ${{ github.event.inputs.max_retries || '3' }}
+          GH_REMOTE_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          WORK_ROOT: /tmp/kaoss999-mirror
+        run: |
+          bash scripts/mirror_to_github_branches.sh
+
+      - name: Upload mirror reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaoss999-full-mirror-${{ github.run_id }}
+          path: |
+            /tmp/kaoss999-mirror/repos.txt
+            /tmp/kaoss999-mirror/mirror_report.jsonl
+            /tmp/kaoss999-mirror/mirror_summary.json
+          if-no-files-found: warn
