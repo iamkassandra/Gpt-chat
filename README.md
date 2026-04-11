@@ -22,12 +22,12 @@ This keeps all repositories separated and avoids overwriting one another.
 
 1. Push this branch to GitHub.
 2. Open **Actions → Kaoss999 Full Mirror To GitHub**.
-3. Click **Run workflow**.
+3. It auto-starts on push to `main`/`master` (or click **Run workflow**).
 4. Optional inputs:
    - `branch_prefix` (default: `hf-kaoss999`)
    - `max_retries` (default: `3`)
 
-Nightly auto-run is enabled at `03:00 UTC`.
+Auto-run is enabled on push to `main`/`master`, plus nightly at `03:00 UTC`.
 
 ## Notes
 

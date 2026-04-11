@@ -1,6 +1,8 @@
 name: Kaoss999 Full Mirror To GitHub
 
 on:
+  push:
+    branches: ["main", "master"]
   workflow_dispatch:
     inputs:
       branch_prefix:
